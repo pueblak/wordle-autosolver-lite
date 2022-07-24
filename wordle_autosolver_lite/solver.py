@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from random import sample, shuffle, choice
 from itertools import combinations
 from typing import Callable, Optional
@@ -72,6 +74,25 @@ class SessionInfo:
         self.subtree = [saved_best for _ in range(num_boards)]
         self.best = [[] for _ in range(num_boards)]
         self.actual_best = choice(BEST_STARTERS)
+
+    def copy(self, *,
+             num_boards: Optional[int] = None,
+             answers: Optional[list[str]] = None,
+             guesses: Optional[list[str]] = None,
+             saved_best: Optional[dict] = None,
+             freq: Optional[dict[str, float]] = None,
+             starters: Optional[list[str]] = None,
+             mode: Optional[GameMode] = None,
+             ) -> SessionInfo:
+        return SessionInfo(
+            self.num_boards if num_boards is None else num_boards,
+            self.answers if answers is None else answers,
+            self.guesses if guesses is None else guesses,
+            self.saved_best if saved_best is None else saved_best,
+            self.freq if freq is None else freq,
+            self.starters if starters is None else starters,
+            self.mode if mode is None else mode
+        )
 
     def __str__(self):
         PADDING, MAX_LENGTH = 24, 20
@@ -521,13 +542,13 @@ def simulate(session: SessionInfo, total_sims: int, best: int = -8,
     Returns:
         A 2-tuple where the first element is the average score and the second
         element is the worst score across all simulations. The score is
-        calculated as `score = num_games + 5 - len(entered)`, where `entered`
+        calculated as `score = num_boards + 5 - len(entered)`, where `entered`
         is the list of all guesses used to solve the game.
     """
     global simulated_answers
     answers = session.remaining[0]
     generated = []
-    if session.num_games == 1:
+    if session.num_boards == 1:
         if total_sims < len(answers):
             generated = answers[:]
             shuffle(generated)
@@ -535,14 +556,14 @@ def simulate(session: SessionInfo, total_sims: int, best: int = -8,
         else:
             generated += WORST_ANSWERS
             generated += [ans for ans in answers if ans not in WORST_ANSWERS]
-    elif total_sims < len(answers)**session.num_games:
+    elif total_sims < len(answers)**session.num_boards:
         while len(generated) < total_sims:
-            answer_list = ','.join(sample(answers, session.num_games))
+            answer_list = ','.join(sample(answers, session.num_boards))
             if answer_list not in generated:
                 generated.append(answer_list)
     else:
         generated = [','.join(c) for c in
-                     combinations(answers, session.num_games)]
+                     combinations(answers, session.num_boards)]
     scores = {}
     failures = []
     starting = str(session.starters)[1:-1]
@@ -558,7 +579,7 @@ def simulate(session: SessionInfo, total_sims: int, best: int = -8,
                               simulated_response)
         score = -8
         if result.solved == simulated_answers:
-            score = session.num_games + 5 - len(result.entered)
+            score = session.num_boards + 5 - len(result.entered)
         if score < best and not show:
             return score, score
         if score not in scores:

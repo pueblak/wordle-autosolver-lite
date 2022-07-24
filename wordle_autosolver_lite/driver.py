@@ -50,8 +50,6 @@ def parse_command_line_args() -> tuple[int, bool, bool, bool, str, int, bool,
     group2.add_argument('--sim', type=int, default=0, metavar='MAX_SIMS',
                         help=('set this flag to simulate MAX_SIMS unique games'
                               ' and give resulting stats'))
-    parser.add_argument('--quiet', action='store_true',
-                        help='set this flag to hide unneeded console output')
     group3 = parser.add_mutually_exclusive_group()
     group3.add_argument('--continue', type=int, default=1,
                         metavar='LIMIT', dest='board_limit',
@@ -101,17 +99,17 @@ def parse_command_line_args() -> tuple[int, bool, bool, bool, str, int, bool,
     if args.inf:
         mode.endless = True
     return (args.num, lim, mode, args.nyt, args.start, args.sim,
-            args.stro, args.best, args.quiet)
+            args.stro, args.best)
 
 
 def main() -> None:  # pragma: no cover
     """Main entry point into the program."""
     # main variable initializations
     (n_games, lim, mode, nyt, start,
-        sim, stro, best, quiet) = parse_command_line_args()
-    (answers, guesses, nordle_guesses, freq,
+        sim, stro, best) = parse_command_line_args()
+    (answers, guesses, _, freq,
         saved_best, resp_data) = load_all_data(mode.hard, mode.master,
-                                               mode.liar, nyt, not quiet)
+                                               mode.liar, nyt)
     set_response_data(resp_data)
     auto_guess = manual_guess
     auto_response = simulated_response if mode.play else manual_response
@@ -134,7 +132,7 @@ def main() -> None:  # pragma: no cover
     if sim > 0:
         session = SessionInfo(n_games, answers, guesses, saved_best, freq,
                               start, mode)
-        simulate(session, sim, show=not quiet)
+        simulate(session, sim, show=True)
     elif sim == -1:
         best_case = [-8, []]
         worst_case = {}
@@ -154,28 +152,22 @@ def main() -> None:  # pragma: no cover
     if sim != 0:
         save_all_data(session.hard, session.master, session.liar,
                       get_best_guess_updated(), saved_best,
-                      get_response_data_updated(), get_response_data(), nyt,
-                      not quiet)
+                      get_response_data_updated(), get_response_data(), nyt)
         exit()
     while n_games <= lim:
         session = SessionInfo(n_games, answers, guesses, saved_best, freq,
                               start, mode)
         try:
-            session = solve_wordle(session, auto_guess, auto_response,
-                                   not quiet)
+            session = solve_wordle(session, auto_guess, auto_response, True)
         except Exception:
             print_exc()
             print()
             print(session)
             exit(1)
-        if quiet:
-            score = n_games + 5 - len(session.entered)
-            print('\n  SOLUTION={}\n     SCORE={}\n'.format(session.solved,
-                                                            score))
         if n_games == lim:
             break
         if stro:
             start = session.solved
     save_all_data(mode.hard, mode.master, mode.liar, get_best_guess_updated(),
                   saved_best, get_response_data_updated(), get_response_data(),
-                  nyt, not quiet)
+                  nyt)

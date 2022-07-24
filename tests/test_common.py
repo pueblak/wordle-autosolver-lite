@@ -108,6 +108,7 @@ def test_game_mode_enum__complex():
     assert(not mode.liar)
     assert(not mode.play)
     assert(mode.endless)
+    assert(mode == common.GameMode.MASTER_ENDLESS)
     mode = common.GameMode(common.GameMode.PLAY_LIAR)
     assert(not mode.default)
     assert(not mode.hard)
@@ -222,16 +223,15 @@ def test_master_response__duplicate_letters():
 
 
 def test_get_response__all_easy():
-    mode = common.GameMode()
-    assert(common.get_response("ratio", "mucus", mode, use_cache=False)
+    assert(common.get_response("ratio", "mucus", use_cache=False)
            == ".....")
-    assert(common.get_response("ratio", "macho", mode, use_cache=False)
+    assert(common.get_response("ratio", "macho", use_cache=False)
            == ".O..O")
-    assert(common.get_response("amber", "rhyme", mode, use_cache=False)
+    assert(common.get_response("amber", "rhyme", use_cache=False)
            == ".+.++")
-    assert(common.get_response("hater", "bathe", mode, use_cache=False)
+    assert(common.get_response("hater", "bathe", use_cache=False)
            == "+OO+.")
-    assert(common.get_response("added", "diced", mode, use_cache=False)
+    assert(common.get_response("added", "diced", use_cache=False)
            == ".+.OO")
 
 
@@ -281,22 +281,21 @@ def example_guess_remaining():
 
 
 def test_filter_remaining__easy(example_guess_remaining):
-    mode = common.GameMode()
     guess, remaining = example_guess_remaining
-    assert(common.filter_remaining(remaining, guess, "OOOOO", mode,
+    assert(common.filter_remaining(remaining, guess, "OOOOO",
                                    use_cache=False) == [guess])
     response = common._get_easy_response(guess, "heart")
-    assert(common.filter_remaining(remaining, guess, response, mode,
+    assert(common.filter_remaining(remaining, guess, response,
                                    use_cache=False)
            == ['other', 'after', 'water', 'later', 'heart', 'court', 'north',
                'earth'])
     response = common._get_easy_response(guess, "child")
-    assert(common.filter_remaining(remaining, guess, response, mode,
+    assert(common.filter_remaining(remaining, guess, response,
                                    use_cache=False)
            == ['which', 'being', 'while', 'going', 'child', 'voice', 'doing',
                'china'])
     response = common._get_easy_response(guess, "sound")
-    assert(common.filter_remaining(remaining, guess, response, mode,
+    assert(common.filter_remaining(remaining, guess, response,
                                    use_cache=False)
            == ['house', 'small', 'shall', 'sense', 'close', 'whose', 'shown',
                'cause', 'sound'])
@@ -367,18 +366,17 @@ def test_filter_remaining__liar(example_guess_remaining):
 
 
 def test_count_remaining__easy(example_guess_remaining):
-    mode = common.GameMode()
     guess, remaining = example_guess_remaining
     response = common._get_easy_response(guess, "heart")
-    assert(common.count_remaining(remaining, guess, response, mode,
+    assert(common.count_remaining(remaining, guess, response,
                                   use_cache=False)
            == 8)
     response = common._get_easy_response(guess, "child")
-    assert(common.count_remaining(remaining, guess, response, mode,
+    assert(common.count_remaining(remaining, guess, response,
                                   use_cache=False)
            == 8)
     response = common._get_easy_response(guess, "sound")
-    assert(common.count_remaining(remaining, guess, response, mode,
+    assert(common.count_remaining(remaining, guess, response,
                                   use_cache=False)
            == 9)
 
@@ -614,7 +612,7 @@ def test_response_data():
 
 
 def test_colored_response():
-    assert(common.colored_response('trips', 'O.+O.', common.GameMode())
+    assert(common.colored_response('trips', 'O.+O.')
            == ("\x1b[38;5;102m\x1b[48;5;30mT\x1b[0m"
                "R"
                "\x1b[38;5;103m\x1b[48;5;30mI\x1b[0m"
