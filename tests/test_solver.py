@@ -1,8 +1,8 @@
 from pytest import raises
 from io import StringIO
 
-import wordle_autosolver.solver as solver
-from wordle_autosolver.common import GameMode
+import wordle_autosolver_lite.solver as solver
+from wordle_autosolver_lite.common import GameMode
 
 
 def test_session_info_to_str(default_session):

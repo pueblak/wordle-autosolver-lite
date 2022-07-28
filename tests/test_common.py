@@ -1,4 +1,4 @@
-import wordle_autosolver.common as common
+import wordle_autosolver_lite.common as common
 
 
 ###############################################################################

@@ -14,11 +14,11 @@ try:  # pragma: no cover
     from common import colored_response, count_remaining
     from common import best_guesses, set_best_guess_updated
 except ModuleNotFoundError:  # this is only here to help pytest find the module
-    from wordle_autosolver.common import GameMode, SYM_ALTS
-    from wordle_autosolver.common import RIGHT, CLOSE, WRONG, PROGRESS
-    from wordle_autosolver.common import get_response, filter_remaining
-    from wordle_autosolver.common import colored_response, count_remaining
-    from wordle_autosolver.common import best_guesses, set_best_guess_updated
+    from wordle_autosolver_lite.common import RIGHT, CLOSE, WRONG, PROGRESS
+    from wordle_autosolver_lite.common import get_response, filter_remaining
+    from wordle_autosolver_lite.common import colored_response, count_remaining
+    from wordle_autosolver_lite.common import set_best_guess_updated
+    from wordle_autosolver_lite.common import GameMode, SYM_ALTS, best_guesses
 
 
 simulated_answers: list[str] = []

@@ -1,4 +1,4 @@
-import wordle_autosolver.data as data
+import wordle_autosolver_lite.data as data
 
 
 def test_format_bytes():
