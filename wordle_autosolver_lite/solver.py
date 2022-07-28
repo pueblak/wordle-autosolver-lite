@@ -3,21 +3,22 @@ from __future__ import annotations
 from random import sample, shuffle, choice
 from itertools import combinations
 from typing import Callable, Optional
+from math import factorial as fac
 
 from tqdm import tqdm
 
 try:  # pragma: no cover
     from common import GameMode
-    from common import RIGHT, CLOSE, WRONG, PROGRESS
+    from common import RIGHT, CLOSE, WRONG, PROGRESS, SYM_ALTS
     from common import get_response, filter_remaining
     from common import colored_response, count_remaining
     from common import best_guesses, set_best_guess_updated
 except ModuleNotFoundError:  # this is only here to help pytest find the module
-    from wordle_autosolver_lite.common import GameMode, set_best_guess_updated
     from wordle_autosolver_lite.common import RIGHT, CLOSE, WRONG, PROGRESS
     from wordle_autosolver_lite.common import get_response, filter_remaining
     from wordle_autosolver_lite.common import colored_response, count_remaining
-    from wordle_autosolver_lite.common import best_guesses
+    from wordle_autosolver_lite.common import set_best_guess_updated
+    from wordle_autosolver_lite.common import GameMode, SYM_ALTS, best_guesses
 
 
 simulated_answers: list[str] = []
@@ -68,12 +69,14 @@ class SessionInfo:
         self.freq = freq
         self.starters = [] if starters is None else starters[:]
         self.mode = GameMode() if mode is None else mode
-        self.expected = [n for n in range(num_boards)]
-        self.remaining = [[x for x in answers] for _ in range(num_boards)]
+        self.expected = list(range(num_boards))
+        self.remaining = [answers[:] for _ in range(num_boards)]
         self.solved = ['*****' for _ in range(num_boards)]
         self.subtree = [saved_best for _ in range(num_boards)]
         self.best = [[] for _ in range(num_boards)]
-        self.actual_best = choice(BEST_STARTERS)
+        self.actual_best = (choice(BEST_STARTERS)
+                            if len(starters) == 0
+                            else starters[0])
 
     def copy(self, *,
              num_boards: Optional[int] = None,
@@ -158,6 +161,35 @@ class SessionInfo:
                                 MAX_LENGTH, PADDING),
                     self.actual_best.upper()
                 )
+
+
+def get_worst_liar_response(guess: str, answer: str, remaining: list[str]):
+    """Finds a valid liar response which results in the most remaining answers.
+
+    Args:
+        guess:
+            The word which was guessed by the player
+        answer:
+            A potential answer word to be tested
+        remaining:
+            The list of remaining possible answers
+
+    Returns:
+        The response which results in the most remaining possible answers.
+    """
+    mode = GameMode()
+    response = get_response(guess, answer, mode)
+    mode.liar = True
+    worst_response = ''
+    worst_count = 0
+    for sym_idx in range(len(response)):
+        for alt in SYM_ALTS[response[sym_idx]]:
+            response = response[:sym_idx] + alt + response[sym_idx + 1:]
+            count = count_remaining(remaining, guess, response, mode)
+            if count > worst_count:
+                worst_response = response
+                worst_count = count
+    return worst_response
 
 
 ###############################################################################
@@ -267,10 +299,18 @@ def simulated_response(session: SessionInfo) -> list[tuple[str, int]]:
                                    session.num_boards)  # pragma: no cover
     responses = []
     for board in session.expected:
-        responses.append(
-            (get_response(session.entered[-1], simulated_answers[board],
-                          session.mode), board)
-        )
+        if session.mode.liar:
+            responses.append(
+                (get_worst_liar_response(session.entered[-1],
+                                         simulated_answers[board],
+                                         session.remaining[board]),
+                 board)
+            )
+        else:
+            responses.append(
+                (get_response(session.entered[-1], simulated_answers[board],
+                              session.mode), board)
+            )
     return responses
 
 
@@ -290,20 +330,18 @@ def solve_wordle(session: SessionInfo,
             A SessionInfo instance containing all information about the current
             set of games being solved
         auto_guess:
-            A function which takes six arguments and returns a str; for an
-            example of what is expected, refer to `manual_guess`
+            A function which takes a SessionInfo instance and returns a str;
+            for an example of what is expected, refer to `manual_guess`
         auto_response:
-            A function which takes eight arguments and returns a list; for an
-            example of what is expected, refer to `manual_response`
+            A function which takes a SessionInfo instance and returns a list;
+            for an example of what is expected, refer to `manual_response`
         allow_print:
             A boolean value representing whether the program should print info
             to the console (each guess/response, PROGRESS bars, etc.) (default:
             False)
 
     Returns:
-        A 2-tuple containing two lists of str: the first list contains the
-        solutions for each board, in order; the second list contains every word
-        guessed by the user (or the program), also in order.
+        The given SessionInfo instance after it has been modified by the solver
     """
     if allow_print:
         print(
@@ -385,6 +423,8 @@ def solve_wordle(session: SessionInfo,
         print("\nSOLUTIONS:")
         for index, answer in enumerate(session.solved):
             print("{:>4d}. {}".format(index + 1, answer))
+    session.unentered_answers = (
+        set(session.solved) & set(session.answers)) - set(session.entered)
     return session
 
 
@@ -408,7 +448,7 @@ def _parse_response(response: str, board: int, auto_response: Callable,
     if len(answers) == 0:  # response does not match any known answers
         if allow_print:
             print("\n\nBOARD {} USES A NEW WORD\n\n".format(board + 1))
-        answers = session.guesses  # create a new list using all words
+        answers = session.guesses  # create a new list using ALL words
         # valid_answer only holds true up to the previous guess
         for entry in session.entered[:-1]:
             resp = get_response(entry, valid_answer, session.mode)
@@ -485,7 +525,9 @@ def _find_best_overall_guess(session: SessionInfo, allow_print: bool
                       if len(session.unentered_answers) > 0
                       else sum(session.best, []))
         if 1 <= len(options) <= 2:
-            session.actual_best = list(options)[0]
+            session.actual_best = sorted(
+                list(options), key=lambda x: session.freq[x], reverse=True
+            )[0]
         else:
             best_score = len(session.guesses) * session.num_boards
             for next_guess in tqdm(options, ascii=PROGRESS, leave=False,
@@ -508,8 +550,13 @@ def _find_best_overall_guess(session: SessionInfo, allow_print: bool
                         if count > worst_case:
                             worst_case = count
                     worst.append(worst_case)
-                if sum(worst) < best_score:
-                    best_score = sum(worst)
+                total = sum(worst)
+                if total < best_score:
+                    best_score = total
+                    session.actual_best = next_guess
+                elif total == best_score and session.freq[
+                    session.actual_best
+                ] < session.freq[next_guess]:
                     session.actual_best = next_guess
         if session.actual_best in session.unentered_answers:
             solved_board = session.solved.index(session.actual_best)
@@ -521,8 +568,9 @@ def _find_best_overall_guess(session: SessionInfo, allow_print: bool
             ))
 
 
-def simulate(session: SessionInfo, total_sims: int, best: int = -8,
-             show: bool = True) -> tuple[float, int]:
+def simulate(session: SessionInfo, total_sims: int = 0, best: int = -8,
+             *, show: bool = True, return_if_worse: bool = False,
+             ) -> tuple[float, int]:
     """Runs a simulation to collect data about the given parameters.
 
     Args:
@@ -531,7 +579,7 @@ def simulate(session: SessionInfo, total_sims: int, best: int = -8,
             set of games being solved
         total_sims:
             The maximum number of games to simulate when collecting data; when
-            `num_games == 1`, this value cannot be greater than `len(answers)`
+            not set, this will simulate every possible game (default: 0)
         best:
             Integer value representing the best worst-case score of all other
             simulations using different starting parameters (default: -8)
@@ -546,7 +594,11 @@ def simulate(session: SessionInfo, total_sims: int, best: int = -8,
         is the list of all guesses used to solve the game.
     """
     global simulated_answers
-    answers = session.remaining[0]
+    answers = session.answers
+    n, r = len(answers), session.num_boards
+    max_sims = fac(n) / (fac(r) * fac(n - r))
+    if total_sims == 0:
+        total_sims = max_sims
     generated = []
     if session.num_boards == 1:
         if total_sims < len(answers):
@@ -554,9 +606,9 @@ def simulate(session: SessionInfo, total_sims: int, best: int = -8,
             shuffle(generated)
             generated = generated[:total_sims]
         else:
-            generated += WORST_ANSWERS
+            generated += [ans for ans in WORST_ANSWERS if ans in answers]
             generated += [ans for ans in answers if ans not in WORST_ANSWERS]
-    elif total_sims < len(answers)**session.num_boards:
+    elif total_sims < max_sims:
         while len(generated) < total_sims:
             answer_list = ','.join(sample(answers, session.num_boards))
             if answer_list not in generated:
@@ -564,6 +616,7 @@ def simulate(session: SessionInfo, total_sims: int, best: int = -8,
     else:
         generated = [','.join(c) for c in
                      combinations(answers, session.num_boards)]
+    total_sims = len(generated)
     scores = {}
     failures = []
     starting = str(session.starters)[1:-1]
@@ -579,8 +632,9 @@ def simulate(session: SessionInfo, total_sims: int, best: int = -8,
                               simulated_response)
         score = -8
         if result.solved == simulated_answers:
-            score = session.num_boards + 5 - len(result.entered)
-        if score < best and not show:
+            score = session.num_boards + 5
+            score -= len(result.entered) + len(result.unentered_answers)
+        if score < best and return_if_worse:
             return score, score
         if score not in scores:
             scores[score] = 0
@@ -594,7 +648,7 @@ def simulate(session: SessionInfo, total_sims: int, best: int = -8,
         for score in range(-8, 6):
             if score in scores:
                 count = scores[score]
-                print('{:^7d}|{:^7d}| {:<.4f}'.format(score, count,
+                print('{:^7d}|{:^7d}| {:<.4f}'.format(score, count, 100 *
                                                       count / total_sims))
         print("\nAVERAGE = {:.2f}".format(avg))
         if len(failures) < 64:
